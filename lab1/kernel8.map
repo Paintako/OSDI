@@ -1,0 +1,73 @@
+
+Memory Configuration
+
+Name             Origin             Length             Attributes
+*default*        0x0000000000000000 0xffffffffffffffff
+
+Linker script and memory map
+
+                0x0000000000080000                . = 0x80000
+
+.text           0x0000000000080000      0x110
+ *(.text.boot)
+ .text.boot     0x0000000000080000       0x50 a.o
+                0x0000000000080000                _start
+ *(.text)
+ .text          0x0000000000080050        0x0 a.o
+ .text          0x0000000000080050        0x0 main.o
+ .text          0x0000000000080050       0xc0 uart.o
+                0x0000000000080050                uart_init
+                0x00000000000800c4                uart_getc
+                0x00000000000800f0                uart_send
+
+.iplt           0x0000000000080110        0x0
+ .iplt          0x0000000000080110        0x0 a.o
+
+.text.startup   0x0000000000080110       0x28
+ .text.startup  0x0000000000080110       0x28 main.o
+                0x0000000000080110                main
+
+.eh_frame       0x0000000000080138       0x6c
+ .eh_frame      0x0000000000080138       0x30 main.o
+ .eh_frame      0x0000000000080168       0x3c uart.o
+                                         0x50 (size before relaxing)
+
+.rela.dyn       0x00000000000801a8        0x0
+ .rela.iplt     0x00000000000801a8        0x0 a.o
+ .rela.text.boot
+                0x00000000000801a8        0x0 a.o
+
+.data           0x00000000000801a4        0x0
+ *(.data)
+ .data          0x00000000000801a4        0x0 a.o
+ .data          0x00000000000801a4        0x0 main.o
+ .data          0x00000000000801a4        0x0 uart.o
+
+.igot.plt       0x00000000000801a8        0x0
+ .igot.plt      0x00000000000801a8        0x0 a.o
+
+.bss            0x00000000000801b0        0x0
+                0x00000000000801b0                __bss_start = .
+ *(.bss)
+ .bss           0x00000000000801b0        0x0 a.o
+ .bss           0x00000000000801b0        0x0 main.o
+ .bss           0x00000000000801b0        0x0 uart.o
+                0x00000000000801b0                __bss_end = .
+                0x0000000000000000                __bss_size = ((__bss_end - __bss_start) >> 0x3)
+LOAD a.o
+LOAD main.o
+LOAD uart.o
+OUTPUT(kernel8.img elf64-littleaarch64)
+LOAD linker stubs
+
+.comment        0x0000000000000000       0x2b
+ .comment       0x0000000000000000       0x2b main.o
+                                         0x2c (size before relaxing)
+ .comment       0x000000000000002b       0x2c uart.o
+
+.note.GNU-stack
+                0x0000000000000000        0x0
+ .note.GNU-stack
+                0x0000000000000000        0x0 main.o
+ .note.GNU-stack
+                0x0000000000000000        0x0 uart.o
