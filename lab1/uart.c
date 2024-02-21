@@ -32,49 +32,112 @@ interrupt.
 6. Set AUX_MU_BAUD to 270. Set baud rate to 115200
     After booting, the system clock is 250 MHz.
 7. Set AUX_MU_IIR_REG to 6. No FIFO.
-8. Set AUX_MU_CNTL_REG to 3. Enable the transmitter and receiver.
+8. Map UART to GPIO pins.
+9. Set AUX_MU_CNTL_REG to 3. Enable the transmitter and receiver.
 
 */
 
-void uart_init(void) {
-  *AUX_ENABLE |= 1;
-  // Disable UART0
-  *AUX_MU_CNTL = 0;
-  // Disable interrupts
-  *AUX_MU_IER = 0;
-  // Enable 8 bit mode
-  *AUX_MU_LCR = 3;
-  // Set RTS line to be always high
-  *AUX_MU_MCR = 0;
-  // Set baud rate to 115200
-  *AUX_MU_BAUD = 270;
-  // Enable transmitter and receiver
-  *AUX_MU_CNTL = 3;
-  // Set AUX_MU_IIR_REG to 6. No FIFO.
-  *AUX_MU_IIR = 6;
-  // Set AUX_MU_CNTL_REG to 3. Enable the transmitter and receiver.
-  *AUX_MU_CNTL = 3;
-}
+void uart_init() {
+  register unsigned int r;
 
-// get a character from the UART
-char uart_getc(void) {
-  // 1. Check AUX_MU_LSR_REG’s data ready field.
-  while (1) {
-    if (!(*AUX_MU_LSR & 0x01))
-      break;
+  /* initialize UART */
+  *AUX_ENABLE |= 1;   // enable UART1, AUX mini uart
+  *AUX_MU_CNTL = 0;   // Disable TX, RX during configuration (TX means transmit,
+                      // RX means receive)
+  *AUX_MU_IER = 0;    // Disable interrupt
+  *AUX_MU_LCR = 3;    // set data size to 8 bits
+  *AUX_MU_MCR = 0;    // don't need auto flow control
+  *AUX_MU_BAUD = 270; // 115200 baud
+  *AUX_MU_IIR = 6;    // disable interrupts
+
+  /* map UART1 to GPIO pins */
+  // 1. Set GPIO 14 and 15 to alternative function 5, which is UART
+  r = *GPFSEL1;
+  r &= ~((7 << 12) | (7 << 15)); // Reset GPIO 14 and 15
+  r |= (2 << 12) | (2 << 15);    // Set alt5
+  *GPFSEL1 = r;
+
+  // 2. Disable GPIO pull up/down (Because these GPIO pins use alternate
+  // functions, not basic input-output) Set control signal to disable
+  *GPPUD = 0; // enable pins 14 and 15
+
+  // Wait 150 cycles
+  r = 150;
+  while (r--) {
+    asm volatile("nop");
   }
 
+  // Clock the control signal into the GPIO pads
+  *GPPUDCLK0 = (1 << 14) | (1 << 15);
+  r = 150;
+  while (r--) {
+    asm volatile("nop");
+  }
+
+  // Remove the clock and control signal
+  *GPPUDCLK0 = 0;   // flush GPIO setup
+  *AUX_MU_CNTL = 3; // enable Tx, Rx
+}
+
+char uart_read() {
+  // Check data ready field
+  do {
+    asm volatile("nop");
+  } while (!(*AUX_MU_LSR & 0x01));
+  // Read
   char r = (char)(*AUX_MU_IO);
-  return r;
+  // Convert carrige return to newline
+  return r == '\r' ? '\n' : r;
 }
 
-// send a character via the UART
-void uart_send(unsigned int c) {
-  // AUX_MU_LSR_REG register shows the data status.
+char *uart_read_line() {
+  static char buffer[128]; // Assuming maximum input length is 128 characters
+  char *ptr = buffer;
+
+  // Read characters until newline is encountered or buffer is full
   while (1) {
-    // 0x20: Transmitter idle and FIFO is empty,
-    if ((*AUX_MU_LSR & 0x20))
-      break;
+    // Check data ready field
+    do {
+      asm volatile("nop");
+    } while (!(*AUX_MU_LSR & 0x01));
+
+    // Read a character
+    char r = (char)(*AUX_MU_IO);
+
+    // Convert carrige return to newline
+    if (r == '\r') {
+      *ptr++ = '\n'; // Change carriage return to newline
+      *ptr = '\0';   // Null-terminate the string
+      uart_write('\n');
+      break; // Exit the loop
+    } else {
+      *ptr++ = r; // Store the character in buffer
+      uart_write(r);
+    }
   }
-  *AUX_MU_IO = c; // write the character to the buffer
+
+  return buffer;
+}
+
+void uart_write(unsigned int c) {
+  // write a character to the UART
+
+  // Check transmitter idle field
+  do {
+    asm volatile("nop");
+  } while (!(*AUX_MU_LSR & 0x20));
+  // Write
+  *AUX_MU_IO = c;
+}
+
+// Print a string to the UART
+void uart_puts(char *s) {
+  // use a while loop to print each character of the string to the UART
+  while (*s) {
+    // convert newline to carrige return + newline
+    if (*s == '\n') {
+      uart_write('\r');
+    }
+    uart_write(*s++);
+  }
 }
