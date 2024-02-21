@@ -1,12 +1,12 @@
+#include "shell.h"
 #include "uart.h"
-
 void main() {
+  // set up serial console
   uart_init();
-  // say hello
-  uart_send('H');
 
-  // echo everything back
-  while (1) {
-    uart_send(uart_getc());
-  }
+  // shell
+  shell_init();
+  shell_read();
+
+  return;
 }
