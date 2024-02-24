@@ -79,6 +79,7 @@ void uart_init() {
   *AUX_MU_CNTL = 3; // enable Tx, Rx
 }
 
+// read a character from the UART
 char uart_read() {
   // Check data ready field
   do {
@@ -87,9 +88,10 @@ char uart_read() {
   // Read
   char r = (char)(*AUX_MU_IO);
   // Convert carrige return to newline
-  return r == '\r' ? '\n' : r;
+  return r;
 }
 
+// read whole line from the UART using uart_read
 char *uart_read_line() {
   static char buffer[128]; // Assuming maximum input length is 128 characters
   char *ptr = buffer;
@@ -97,12 +99,7 @@ char *uart_read_line() {
   // Read characters until newline is encountered or buffer is full
   while (1) {
     // Check data ready field
-    do {
-      asm volatile("nop");
-    } while (!(*AUX_MU_LSR & 0x01));
-
-    // Read a character
-    char r = (char)(*AUX_MU_IO);
+    char r = uart_read();
 
     // Convert carrige return to newline
     if (r == '\r') {
@@ -119,8 +116,8 @@ char *uart_read_line() {
   return buffer;
 }
 
+// write a character to the UART
 void uart_write(unsigned int c) {
-  // write a character to the UART
 
   // Check transmitter idle field
   do {
@@ -131,7 +128,7 @@ void uart_write(unsigned int c) {
 }
 
 // Print a string to the UART
-void uart_puts(char *s) {
+void uart_printString(char *s) {
   // use a while loop to print each character of the string to the UART
   while (*s) {
     // convert newline to carrige return + newline
@@ -139,5 +136,18 @@ void uart_puts(char *s) {
       uart_write('\r');
     }
     uart_write(*s++);
+  }
+}
+
+// Print a hex number to the UART
+void uart_hex(unsigned int d) {
+  unsigned int n;
+  int c;
+  for (c = 28; c >= 0; c -= 4) {
+    // get highest tetrad
+    n = (d >> c) & 0xF;
+    // 0-9 => '0'-'9', 10-15 => 'A'-'F'
+    n += n > 9 ? 0x37 : 0x30;
+    uart_printString(n);
   }
 }
