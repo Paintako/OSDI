@@ -35,6 +35,7 @@ kernel8.img: $(ASSEMBLY_FILES) $(OBJS)
 clean:
 	rm -f *.o *.elf *.bin *.img *.map
 
-run: 
-	qemu-system-aarch64 -M raspi3b -kernel kernel8.img -serial null -serial stdio
+run:
+	unset GTK_PATH
+	qemu-system-aarch64 -M raspi3b -kernel kernel8.img -serial null -serial stdio -s
 
